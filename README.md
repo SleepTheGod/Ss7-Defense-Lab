@@ -14,3 +14,54 @@ persistence & rotation
 PCAPs: /opt/ss7-lab/pcaps — rotate manually or add systemd timer.
 
 Auto-start: systemctl enable docker && docker compose up -d.
+
+```bash
+Diagnose (one-liners)
+# dir perms / ownership
+ls -ld /opt/ss7-lab/pcaps
+
+# try touching a file (shows immediate permission error)
+touch /opt/ss7-lab/pcaps/.probe || echo "touch failed: $?"
+
+# mount options (if path is on read-only or weird fs)
+findmnt -no SOURCE,TARGET,OPTIONS /opt/ss7-lab/pcaps || mount | grep " /opt/ss7-lab"
+
+# disk free
+df -h /opt/ss7-lab/pcaps
+
+# AppArmor status (rare but possible)
+which aa-status &>/dev/null && aa-status || echo "apparmor not present"
+
+Fast fixes (pick one)
+A — make directory writable by everyone (fastest, less strict)
+
+mkdir -p /opt/ss7-lab/pcaps
+chmod 0777 /opt/ss7-lab/pcaps
+
+B — safer: give ownership to current user (root in your case) and reasonable perms
+
+mkdir -p /opt/ss7-lab/pcaps
+chown root:root /opt/ss7-lab/pcaps
+chmod 0755 /opt/ss7-lab/pcaps
+
+C — fallback: write capture to /tmp then move
+
+tcpdump -i any -s0 -w /tmp/test.pcapng 'sctp or port 2905 or port 3868'
+mv /tmp/test.pcapng /opt/ss7-lab/pcaps/
+
+Re-run capture (example)
+
+sudo tcpdump -i any -s0 -w /opt/ss7-lab/pcaps/test-$(date -u +%Y%m%dT%H%M%SZ).pcapng 'sctp or port 2905 or port 3868'
+
+If you still get Permission denied after chmod/chown:
+
+Check findmnt output for read-only mount or network filesystem. If it's read-only, capture to a writable path (e.g. /tmp) or remount rw.
+
+Check AppArmor (aa-status) or SELinux (unlikely on Debian). If AppArmor denies, either disable the profile for tcpdump or allow write to that path.
+
+Optional: use the lab sniffer container (avoids host-perm issues)
+
+cd /opt/ss7-lab
+docker compose run --rm sniffer   # writes into ./pcaps (container runs as root)
+
+```

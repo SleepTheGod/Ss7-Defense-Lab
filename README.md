@@ -65,3 +65,25 @@ cd /opt/ss7-lab
 docker compose run --rm sniffer   # writes into ./pcaps (container runs as root)
 
 ```
+
+```bash
+# SS7 / SIGTRAN / SMS / SIP detection rules
+# Made by Taylor Christian Newsome
+
+# MT-ForwardSM with obvious subscription keyword
+alert tcp any any -> any any (msg:"SS7: MT-ForwardSM SUBSCRIBE PREMIUM"; content:"SUBSCRIBE PREMIUM"; nocase; sid:10000010; rev:1; classtype:bad-unknown;)
+
+# MT-ForwardSM generic: look for MT-ForwardSM text identifier or keyword
+alert tcp any any -> any any (msg:"SS7: MT-ForwardSM payload"; content:"MT-ForwardSM"; nocase; sid:10000011; rev:1; classtype:bad-unknown;)
+
+# Detect common MAP/TCAP opcodes (CancelLocation / UpdateLocation / SendRoutingInfo / SendAuthenticationInfo)
+alert udp any any -> any any (msg:"SS7: TCAP/MAP operation - CancelLocation/UpdateLocation/SendRoutingInfo/SendAuthenticationInfo"; content:"CancelLocation"; nocase; sid:10000012; rev:1; classtype:attempted-admin;)
+alert udp any any -> any any (msg:"SS7: TCAP/MAP - SendAuthenticationInfo"; content:"SendAuthenticationInfo"; nocase; sid:10000013; rev:1; classtype:attempted-admin;)
+
+# IMSI-like pattern (approx): digits 10-16 inside SMS/TCAP payloads (false-positive prone)
+alert tcp any any -> any any (msg:"SS7: Potential IMSI pattern"; pcre:"/[0-9]{10,16}/"; sid:10000014; rev:1; classtype:suspicious;)
+
+# SIP monitoring: suspicious REGISTER or INVITE to premium shortcodes
+alert udp any any -> any any (msg:"SIP: possible suspicious INVITE/REGISTER"; content:"INVITE"; nocase; sid:10000020; rev:1; classtype:bad-unknown;)
+alert udp any any -> any any (msg:"SIP: possible suspicious REGISTER"; content:"REGISTER"; nocase; sid:10000021; rev:1; classtype:bad-unknown;)
+```
